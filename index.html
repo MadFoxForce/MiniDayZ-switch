@@ -68,70 +68,72 @@
 	<script src="docs/jquery-3.4.1.min.js"></script>
 
     <script>
-		// Override XMLHttpRequest to fix resource paths for root deployment
+		// УНИВЕРСАЛЬНЫЙ ПЕРЕХВАТ ВСЕХ РЕСУРСОВ
+		// Автоматически перенаправляет все запросы к ресурсам на docs/
 		(function() {
+			'use strict';
+			
+			// Универсальная функция для исправления путей
 			function fixResourcePath(url) {
-				if (!url || url.match(/^(https?:\/\/|data:|docs\/|\/)/)) {
+				if (!url || typeof url !== 'string') {
 					return url;
 				}
-				// Fix paths for files in root or subdirectories
-				if (url.endsWith('.js') || url.endsWith('.json') || url.endsWith('.xml') || url.endsWith('.ogg') || url.endsWith('.mp3') || url.endsWith('.wav')) {
-					// If it's a direct file (no slash) or starts with ./ or is in a subdirectory
-					if (!url.includes('/') || url.startsWith('./') || url.match(/^[^\/]+\.(js|json|xml|ogg|mp3|wav)$/)) {
-						return 'docs/' + url.replace(/^\.\//, '');
-					}
-					// If it's in a subdirectory like media/, keep it but add docs/
-					if (url.startsWith('media/') || url.startsWith('sounds/')) {
-						return 'docs/' + url;
-					}
+				
+				// Не трогаем абсолютные URL, data: URI, уже исправленные пути и абсолютные пути
+				if (url.match(/^(https?:\/\/|data:|docs\/|\/)/)) {
+					return url;
 				}
-				return url;
+				
+				// Убираем ./ в начале
+				url = url.replace(/^\.\//, '');
+				
+				// Если путь уже начинается с docs/, не трогаем
+				if (url.startsWith('docs/')) {
+					return url;
+				}
+				
+				// ВСЕ остальные пути перенаправляем на docs/
+				return 'docs/' + url;
 			}
 			
-			var originalOpen = XMLHttpRequest.prototype.open;
+			// 1. Перехват XMLHttpRequest
+			var originalXHROpen = XMLHttpRequest.prototype.open;
 			XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
 				url = fixResourcePath(url);
-				return originalOpen.call(this, method, url, async, user, password);
+				return originalXHROpen.call(this, method, url, async !== undefined ? async : true, user, password);
 			};
-		})();
-		
-		// Override Image and Audio constructors to fix resource paths
-		(function() {
-			function fixResourcePath(path) {
-				if (!path || path.match(/^(https?:\/\/|data:|docs\/|\/)/)) {
-					return path;
-				}
-				// Fix paths for resources in images/, media/, sounds/, or root files
-				if (path.startsWith('images/') || path.startsWith('media/') || path.startsWith('sounds/')) {
-					return 'docs/' + path;
-				}
-				// Files in root should be in docs/
-				if (!path.includes('/') || path.startsWith('./')) {
-					path = path.replace(/^\.\//, '');
-					return 'docs/' + path;
-				}
-				return path;
+			
+			// 2. Перехват fetch API
+			if (window.fetch) {
+				var originalFetch = window.fetch;
+				window.fetch = function(input, init) {
+					if (typeof input === 'string') {
+						input = fixResourcePath(input);
+					} else if (input && input.url) {
+						input = new Request(fixResourcePath(input.url), input);
+					}
+					return originalFetch.call(this, input, init);
+				};
 			}
 			
-			// Override Image constructor
+			// 3. Перехват Image конструктора
 			var OriginalImage = window.Image;
 			window.Image = function(width, height) {
 				var img = new OriginalImage(width, height);
 				var _src = '';
 				Object.defineProperty(img, 'src', {
-					get: function() {
-						return _src;
-					},
+					get: function() { return _src; },
 					set: function(value) {
 						_src = fixResourcePath(value);
 						img.setAttribute('src', _src);
-					}
+					},
+					configurable: true
 				});
 				return img;
 			};
 			window.Image.prototype = OriginalImage.prototype;
 			
-			// Override Audio constructor
+			// 4. Перехват Audio конструктора
 			var OriginalAudio = window.Audio;
 			window.Audio = function(src) {
 				var audio = new OriginalAudio();
@@ -140,44 +142,113 @@
 				}
 				var _src = '';
 				Object.defineProperty(audio, 'src', {
-					get: function() {
-						return _src || audio.getAttribute('src') || '';
-					},
+					get: function() { return _src || audio.getAttribute('src') || ''; },
 					set: function(value) {
 						_src = fixResourcePath(value);
 						audio.setAttribute('src', _src);
-						if (OriginalAudio.prototype.src) {
-							OriginalAudio.prototype.src = _src;
-						}
-					}
+					},
+					configurable: true
 				});
 				return audio;
 			};
 			window.Audio.prototype = OriginalAudio.prototype;
 			
-			// Override HTMLImageElement.prototype.src for existing images
-			var originalImgSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
-			if (originalImgSrcDescriptor && originalImgSrcDescriptor.set) {
+			// 5. Перехват Video конструктора (на всякий случай)
+			if (window.Video) {
+				var OriginalVideo = window.Video;
+				window.Video = function(src) {
+					var video = new OriginalVideo();
+					if (src) {
+						video.src = fixResourcePath(src);
+					}
+					var _src = '';
+					Object.defineProperty(video, 'src', {
+						get: function() { return _src || video.getAttribute('src') || ''; },
+						set: function(value) {
+							_src = fixResourcePath(value);
+							video.setAttribute('src', _src);
+						},
+						configurable: true
+					});
+					return video;
+				};
+				window.Video.prototype = OriginalVideo.prototype;
+			}
+			
+			// 6. Перехват src для HTMLImageElement
+			var originalImgSrc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+			if (originalImgSrc) {
 				Object.defineProperty(HTMLImageElement.prototype, 'src', {
-					get: originalImgSrcDescriptor.get,
+					get: originalImgSrc.get,
 					set: function(value) {
-						originalImgSrcDescriptor.set.call(this, fixResourcePath(value));
+						originalImgSrc.set.call(this, fixResourcePath(value));
 					},
 					configurable: true
 				});
 			}
 			
-			// Override HTMLAudioElement.prototype.src for existing audio
-			var originalAudioSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLAudioElement.prototype, 'src');
-			if (originalAudioSrcDescriptor && originalAudioSrcDescriptor.set) {
+			// 7. Перехват src для HTMLAudioElement
+			var originalAudioSrc = Object.getOwnPropertyDescriptor(HTMLAudioElement.prototype, 'src');
+			if (originalAudioSrc) {
 				Object.defineProperty(HTMLAudioElement.prototype, 'src', {
-					get: originalAudioSrcDescriptor.get,
+					get: originalAudioSrc.get,
 					set: function(value) {
-						originalAudioSrcDescriptor.set.call(this, fixResourcePath(value));
+						originalAudioSrc.set.call(this, fixResourcePath(value));
 					},
 					configurable: true
 				});
 			}
+			
+			// 8. Перехват src для HTMLVideoElement
+			var originalVideoSrc = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, 'src');
+			if (originalVideoSrc) {
+				Object.defineProperty(HTMLVideoElement.prototype, 'src', {
+					get: originalVideoSrc.get,
+					set: function(value) {
+						originalVideoSrc.set.call(this, fixResourcePath(value));
+					},
+					configurable: true
+				});
+			}
+			
+			// 9. Перехват href для элементов link (CSS)
+			var originalLinkHref = Object.getOwnPropertyDescriptor(HTMLLinkElement.prototype, 'href');
+			if (originalLinkHref) {
+				Object.defineProperty(HTMLLinkElement.prototype, 'href', {
+					get: originalLinkHref.get,
+					set: function(value) {
+						// CSS файлы тоже могут быть относительными
+						if (value && !value.match(/^(https?:\/\/|data:|docs\/|\/)/)) {
+							value = fixResourcePath(value);
+						}
+						originalLinkHref.set.call(this, value);
+					},
+					configurable: true
+				});
+			}
+			
+			// 10. Перехват createElement для динамически создаваемых элементов
+			var originalCreateElement = document.createElement;
+			document.createElement = function(tagName, options) {
+				var element = originalCreateElement.call(document, tagName, options);
+				
+				// Для img, audio, video перехватываем src
+				if (tagName.toLowerCase() === 'img' || tagName.toLowerCase() === 'audio' || tagName.toLowerCase() === 'video') {
+					var _src = '';
+					Object.defineProperty(element, 'src', {
+						get: function() { return _src; },
+						set: function(value) {
+							_src = fixResourcePath(value);
+							element.setAttribute('src', _src);
+						},
+						configurable: true
+					});
+				}
+				
+				return element;
+			};
+			
+			console.log('[Resource Path Fix] Универсальный перехват всех ресурсов активирован');
 		})();
     </script>
 	
