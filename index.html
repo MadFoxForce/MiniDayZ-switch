@@ -67,7 +67,19 @@
 	<!-- Construct 2 exported games require jQuery. -->
 	<script src="docs/jquery-3.4.1.min.js"></script>
 
-
+    <script>
+		// Override XMLHttpRequest to fix data.js path for root deployment
+		(function() {
+			var originalOpen = XMLHttpRequest.prototype.open;
+			XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
+				// Fix data.js path - runtime looks for it relative to c2runtime.js location
+				if (url === "data.js" || url === "data.json") {
+					url = "docs/" + url;
+				}
+				return originalOpen.call(this, method, url, async, user, password);
+			};
+		})();
+    </script>
 	
     <!-- The runtime script.  You can rename it, but don't forget to rename the reference here as well.
     This file will have been minified and obfuscated if you enabled "Minify script" during export. -->
@@ -77,8 +89,6 @@
 	<script src="docs/game-modifications.js"></script>
 
     <script>
-		// Override data.js path for root deployment
-		window.cr_dataJsPath = "docs/data.js";
 		
 		// Start the Construct 2 project running on window load.
 		jQuery(document).ready(function ()
