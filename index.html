@@ -51,10 +51,6 @@
 			touch-action-delay: none;
 			touch-action: none;
 			-ms-touch-action: none;
-			max-width: 100vw;
-			max-height: 100vh;
-			width: auto;
-			height: auto;
 			display: block;
 		}
     </style>
@@ -297,10 +293,60 @@
 		// Start the Construct 2 project running on window load.
 		jQuery(document).ready(function ()
 		{			
-			// Canvas остается в оригинальном размере 1024x768
-			// Масштабирование происходит через CSS
 			// Create new runtime using the c2canvas
-			cr_createRuntime("c2canvas");
+			var runtime = cr_createRuntime("c2canvas");
+			
+			// Перехватываем setSize для правильного масштабирования
+			function setupScaling() {
+				var rt = window.cr_getC2Runtime();
+				if (!rt) {
+					setTimeout(setupScaling, 100);
+					return;
+				}
+				
+				var canvas = document.getElementById("c2canvas");
+				var container = document.getElementById("c2canvasdiv");
+				if (!canvas || !container) return;
+				
+				// Сохраняем оригинальный setSize
+				var originalSetSize = rt.setSize;
+				
+				// Переопределяем setSize
+				rt.setSize = function(width, height, force) {
+					// Вызываем оригинальный setSize с оригинальными размерами игры
+					originalSetSize.call(this, 1024, 768, force);
+					
+					// Масштабируем canvas через CSS
+					var viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+					var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+					
+					var scaleX = viewportWidth / 1024;
+					var scaleY = viewportHeight / 768;
+					var scale = Math.min(scaleX, scaleY);
+					
+					// Применяем масштаб
+					canvas.style.transform = "scale(" + scale + ")";
+					canvas.style.transformOrigin = "center center";
+					
+					// Центрируем контейнер
+					container.style.width = (1024 * scale) + "px";
+					container.style.height = (768 * scale) + "px";
+				};
+				
+				// Вызываем setSize для применения масштабирования
+				if (rt.setSize) {
+					rt.setSize(window.innerWidth, window.innerHeight, true);
+				}
+				
+				// Обновляем при изменении размера окна
+				window.addEventListener("resize", function() {
+					if (rt.setSize) {
+						rt.setSize(window.innerWidth, window.innerHeight, true);
+					}
+				});
+			}
+			
+			setupScaling();
 		});
 		
 		// Pause and resume on page becoming visible/invisible
