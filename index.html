@@ -43,15 +43,15 @@
 			top: 0;
 			left: 0;
 			overflow: hidden;
-			display: flex;
-			align-items: center;
-			justify-content: center;
 		}
 		canvas {
 			touch-action-delay: none;
 			touch-action: none;
 			-ms-touch-action: none;
 			display: block;
+			width: 100vw;
+			height: 100vh;
+			object-fit: contain;
 		}
     </style>
 	
@@ -313,27 +313,24 @@
 				
 				// Переопределяем setSize
 				rt.setSize = function(width, height, force) {
-					// Вызываем оригинальный setSize с оригинальными размерами игры
-					originalSetSize.call(this, 1024, 768, force);
-					
-					// Масштабируем canvas через CSS
+					// Получаем размеры viewport
 					var viewportWidth = window.innerWidth || document.documentElement.clientWidth;
 					var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
 					
-					var scaleX = viewportWidth / 1024;
-					var scaleY = viewportHeight / 768;
-					var scale = Math.min(scaleX, scaleY);
+					// Валидация
+					viewportWidth = Number(viewportWidth);
+					viewportHeight = Number(viewportHeight);
+					if (!isFinite(viewportWidth) || viewportWidth <= 0) viewportWidth = 1024;
+					if (!isFinite(viewportHeight) || viewportHeight <= 0) viewportHeight = 768;
 					
-					// Применяем масштаб
-					canvas.style.transform = "scale(" + scale + ")";
-					canvas.style.transformOrigin = "center center";
+					viewportWidth = Math.max(320, Math.floor(viewportWidth));
+					viewportHeight = Math.max(240, Math.floor(viewportHeight));
 					
-					// Центрируем контейнер
-					container.style.width = (1024 * scale) + "px";
-					container.style.height = (768 * scale) + "px";
+					// Вызываем оригинальный setSize с размерами viewport
+					originalSetSize.call(this, viewportWidth, viewportHeight, force);
 				};
 				
-				// Вызываем setSize для применения масштабирования
+				// Вызываем setSize для применения размеров
 				if (rt.setSize) {
 					rt.setSize(window.innerWidth, window.innerHeight, true);
 				}
