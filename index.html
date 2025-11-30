@@ -9,7 +9,7 @@
 	<link rel="manifest" href="docs/appmanifest.json" />
 	
 	<!-- Allow fullscreen mode on iOS devices. (These are Apple specific meta tags.) -->
-	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, minimal-ui" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
 	<meta name="apple-mobile-web-app-capable" content="yes" />
 	<meta name="apple-mobile-web-app-status-bar-style" content="black" />
 	<link rel="apple-touch-icon" sizes="256x256" href="docs/icon-256.png" />
@@ -84,36 +84,53 @@
 			};
 		})();
 		
-		// Override Image constructor to fix image paths
+		// Override Image constructor and HTMLImageElement.src to fix image paths
 		(function() {
+			function fixImagePath(path) {
+				if (!path || path.match(/^(https?:\/\/|data:|docs\/|\/)/)) {
+					return path;
+				}
+				// Fix paths for images in images/, media/, or root files
+				if (path.startsWith('images/') || path.startsWith('media/')) {
+					return 'docs/' + path;
+				}
+				// Files like loading-logo.png in root should be in docs/
+				if (!path.includes('/') || path.startsWith('./')) {
+					path = path.replace(/^\.\//, '');
+					return 'docs/' + path;
+				}
+				return path;
+			}
+			
+			// Override Image constructor
 			var OriginalImage = window.Image;
 			window.Image = function(width, height) {
 				var img = new OriginalImage(width, height);
-				var originalSrc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+				var _src = '';
 				Object.defineProperty(img, 'src', {
 					get: function() {
-						return originalSrc.get.call(this);
+						return _src;
 					},
 					set: function(value) {
-						// Fix paths for images - if path doesn't start with http/https/docs/, add docs/
-						if (value && !value.match(/^(https?:\/\/|data:|docs\/)/) && !value.startsWith('/')) {
-							// Check if it's in images/ or other subdirectories
-							if (value.startsWith('images/') || value.startsWith('media/')) {
-								value = 'docs/' + value;
-							} else if (!value.includes('/') || value.startsWith('./')) {
-								// Files in root should be in docs/
-								value = value.replace(/^\.\//, 'docs/');
-								if (!value.startsWith('docs/')) {
-									value = 'docs/' + value;
-								}
-							}
-						}
-						originalSrc.set.call(this, value);
+						_src = fixImagePath(value);
+						img.setAttribute('src', _src);
 					}
 				});
 				return img;
 			};
 			window.Image.prototype = OriginalImage.prototype;
+			
+			// Also override HTMLImageElement.prototype.src for existing images
+			var originalSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+			if (originalSrcDescriptor && originalSrcDescriptor.set) {
+				Object.defineProperty(HTMLImageElement.prototype, 'src', {
+					get: originalSrcDescriptor.get,
+					set: function(value) {
+						originalSrcDescriptor.set.call(this, fixImagePath(value));
+					},
+					configurable: true
+				});
+			}
 		})();
     </script>
 	
