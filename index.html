@@ -50,8 +50,12 @@
 			-ms-touch-action: none;
 			display: block;
 			position: absolute;
-			top: 0;
-			left: 0;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			max-width: 100vw;
+			max-height: 100vh;
+			object-fit: contain;
 		}
     </style>
 	
@@ -283,51 +287,77 @@
 			// Create new runtime using the c2canvas
 			var runtime = cr_createRuntime("c2canvas");
 			
-			// Force fullscreen canvas and proper scaling
+			// Force proper canvas scaling to fit viewport
 			function resizeCanvas() {
 				var canvas = document.getElementById("c2canvas");
-				if (canvas && runtime) {
-					// Get valid viewport dimensions
-					var width = window.innerWidth || document.documentElement.clientWidth || 1024;
-					var height = window.innerHeight || document.documentElement.clientHeight || 768;
-					
-					// Ensure valid finite numbers
-					width = Math.max(1, Math.floor(width));
-					height = Math.max(1, Math.floor(height));
-					
-					// Set canvas container to full viewport
-					var container = document.getElementById("c2canvasdiv");
-					if (container) {
-						container.style.width = width + "px";
-						container.style.height = height + "px";
-						container.style.position = "fixed";
-						container.style.top = "0";
-						container.style.left = "0";
+				if (!canvas) return;
+				
+				// Get runtime if available
+				if (typeof cr_getC2Runtime === 'function') {
+					runtime = cr_getC2Runtime();
+				}
+				
+				if (!runtime) return;
+				
+				// Get valid viewport dimensions
+				var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1024;
+				var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 768;
+				
+				// Ensure valid finite numbers
+				viewportWidth = Math.max(320, Math.floor(viewportWidth));
+				viewportHeight = Math.max(240, Math.floor(viewportHeight));
+				
+				// Set canvas container to full viewport
+				var container = document.getElementById("c2canvasdiv");
+				if (container) {
+					container.style.width = viewportWidth + "px";
+					container.style.height = viewportHeight + "px";
+					container.style.position = "fixed";
+					container.style.top = "0";
+					container.style.left = "0";
+					container.style.overflow = "hidden";
+				}
+				
+				// Resize runtime to match viewport with valid dimensions
+				if (runtime.setSize && isFinite(viewportWidth) && isFinite(viewportHeight)) {
+					try {
+						runtime.setSize(viewportWidth, viewportHeight, true);
+					} catch (e) {
+						console.warn('Error setting runtime size:', e);
 					}
-					
-					// Resize runtime to match viewport with valid dimensions
-					if (runtime.setSize && isFinite(width) && isFinite(height)) {
-						runtime.setSize(width, height, true);
-					}
-					
-					// Also try cr_sizeCanvas if available
-					if (typeof cr_sizeCanvas === 'function') {
+				}
+				
+				// Also try cr_sizeCanvas if available
+				if (typeof cr_sizeCanvas === 'function') {
+					try {
 						cr_sizeCanvas();
+					} catch (e) {
+						console.warn('Error calling cr_sizeCanvas:', e);
 					}
 				}
 			}
 			
 			// Wait for runtime to be fully initialized before resizing
-			setTimeout(function() {
+			var initAttempts = 0;
+			var initInterval = setInterval(function() {
+				initAttempts++;
 				if (typeof cr_getC2Runtime === 'function') {
 					runtime = cr_getC2Runtime();
+					if (runtime) {
+						clearInterval(initInterval);
+						resizeCanvas();
+					}
 				}
-				resizeCanvas();
+				if (initAttempts > 20) {
+					clearInterval(initInterval);
+					resizeCanvas();
+				}
 			}, 100);
 			
-			setTimeout(resizeCanvas, 500);
-			setTimeout(resizeCanvas, 1000);
-			window.addEventListener("resize", resizeCanvas);
+			// Also resize on window resize
+			window.addEventListener("resize", function() {
+				setTimeout(resizeCanvas, 50);
+			});
 		});
 		
 		// Pause and resume on page becoming visible/invisible
