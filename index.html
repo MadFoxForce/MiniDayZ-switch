@@ -67,7 +67,7 @@
 	
 		<!-- The canvas the project will render to.  If you change its ID, don't forget to change the
 		ID the runtime looks for in the jQuery events above (ready() and cr_sizeCanvas()). -->
-		<canvas id="c2canvas" width="1024" height="768" style="width: 100vw; height: 100vh; object-fit: contain;">
+		<canvas id="c2canvas" width="1024" height="768">
 			<!-- This text is displayed if the visitor's browser does not support HTML5.
 			You can change it, but it is a good idea to link to a description of a browser
 			and provide some links to download some popular HTML5-compatible browsers. -->
@@ -329,7 +329,8 @@
 			}
 			
 			if (canvas) {
-				// Устанавливаем реальные размеры canvas (не только CSS)
+				// ВАЖНО: Устанавливаем реальные размеры canvas ДО создания runtime
+				// Это предотвращает ошибку "non-finite" в setPosition
 				canvas.width = size.width;
 				canvas.height = size.height;
 				canvas.style.width = "100%";
@@ -337,6 +338,7 @@
 			}
 			
 			// Create new runtime using the c2canvas
+			// Runtime будет использовать размеры canvas, которые мы только что установили
 			runtime = cr_createRuntime("c2canvas");
 			
 			// Функция для изменения размера
@@ -356,16 +358,20 @@
 				container.style.width = size.width + "px";
 				container.style.height = size.height + "px";
 				
-				// Обновляем реальные размеры canvas
+				// ВАЖНО: Обновляем реальные размеры canvas ПЕРЕД вызовом setSize
+				// Это предотвращает ошибку "non-finite"
 				canvas.width = size.width;
 				canvas.height = size.height;
 				
 				// Обновляем размеры в runtime - это критически важно!
 				if (runtime && runtime.setSize && typeof runtime.setSize === 'function') {
-					try {
-						runtime.setSize(size.width, size.height, true);
-					} catch (e) {
-						console.warn('Error setting runtime size:', e);
+					// Дополнительная проверка перед вызовом
+					if (isFinite(size.width) && isFinite(size.height) && size.width > 0 && size.height > 0) {
+						try {
+							runtime.setSize(size.width, size.height, true);
+						} catch (e) {
+							console.warn('Error setting runtime size:', e);
+						}
 					}
 				}
 				
@@ -380,27 +386,32 @@
 			}
 			
 			// Ждем инициализации runtime и меняем размер
+			// Используем более агрессивный подход - пробуем несколько раз
 			var initAttempts = 0;
 			var initInterval = setInterval(function() {
 				initAttempts++;
 				
 				if (typeof cr_getC2Runtime === 'function') {
 					runtime = cr_getC2Runtime();
-					if (runtime && runtime.setSize) {
-						clearInterval(initInterval);
-						resizeCanvas();
-						return;
+					if (runtime) {
+						// Проверяем, что runtime полностью инициализирован
+						if (runtime.setSize || runtime.width || runtime.height) {
+							clearInterval(initInterval);
+							resizeCanvas();
+							return;
+						}
 					}
 				}
 				
-				if (initAttempts > 30) {
+				if (initAttempts > 50) {
 					clearInterval(initInterval);
 					resizeCanvas();
 				}
-			}, 100);
+			}, 50);
 			
-			// Дополнительные попытки
-			setTimeout(resizeCanvas, 500);
+			// Дополнительные попытки с разными задержками
+			setTimeout(resizeCanvas, 300);
+			setTimeout(resizeCanvas, 600);
 			setTimeout(resizeCanvas, 1000);
 			setTimeout(resizeCanvas, 2000);
 			
