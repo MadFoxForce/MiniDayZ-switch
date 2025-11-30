@@ -43,15 +43,15 @@
 			top: 0;
 			left: 0;
 			overflow: hidden;
+			display: flex;
+			align-items: center;
+			justify-content: center;
 		}
 		canvas {
 			touch-action-delay: none;
 			touch-action: none;
 			-ms-touch-action: none;
 			display: block;
-			width: 100vw;
-			height: 100vh;
-			object-fit: contain;
 		}
     </style>
 	
@@ -311,9 +311,8 @@
 				// Сохраняем оригинальный setSize
 				var originalSetSize = rt.setSize;
 				
-				// Переопределяем setSize
-				rt.setSize = function(width, height, force) {
-					// Получаем размеры viewport
+				// Функция для применения масштабирования
+				function applyScale() {
 					var viewportWidth = window.innerWidth || document.documentElement.clientWidth;
 					var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
 					
@@ -323,23 +322,34 @@
 					if (!isFinite(viewportWidth) || viewportWidth <= 0) viewportWidth = 1024;
 					if (!isFinite(viewportHeight) || viewportHeight <= 0) viewportHeight = 768;
 					
-					viewportWidth = Math.max(320, Math.floor(viewportWidth));
-					viewportHeight = Math.max(240, Math.floor(viewportHeight));
+					// Вычисляем масштаб для заполнения всего экрана
+					var scaleX = viewportWidth / 1024;
+					var scaleY = viewportHeight / 768;
+					// Используем больший масштаб, чтобы заполнить весь экран
+					var scale = Math.max(scaleX, scaleY);
 					
-					// Вызываем оригинальный setSize с размерами viewport
-					originalSetSize.call(this, viewportWidth, viewportHeight, force);
+					// Применяем масштаб через CSS transform
+					canvas.style.transform = "scale(" + scale + ")";
+					canvas.style.transformOrigin = "center center";
+				}
+				
+				// Переопределяем setSize - runtime всегда работает с 1024x768
+				rt.setSize = function(width, height, force) {
+					// Вызываем оригинальный setSize с оригинальными размерами игры
+					originalSetSize.call(this, 1024, 768, force);
+					
+					// Применяем масштабирование
+					applyScale();
 				};
 				
 				// Вызываем setSize для применения размеров
 				if (rt.setSize) {
-					rt.setSize(window.innerWidth, window.innerHeight, true);
+					rt.setSize(1024, 768, true);
 				}
 				
 				// Обновляем при изменении размера окна
 				window.addEventListener("resize", function() {
-					if (rt.setSize) {
-						rt.setSize(window.innerWidth, window.innerHeight, true);
-					}
+					applyScale();
 				});
 			}
 			
