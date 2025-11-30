@@ -120,7 +120,12 @@
 			XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
 				// Исправляем путь перед открытием запроса
 				if (typeof url === 'string') {
+					var originalUrl = url;
 					url = fixResourcePath(url);
+					// Логируем для отладки offlineClient.js
+					if (originalUrl === 'offlineClient.js' || originalUrl.includes('offlineClient')) {
+						console.log('[Resource Fix] offlineClient.js:', originalUrl, '->', url);
+					}
 				}
 				// Убеждаемся, что async установлен правильно
 				if (async === undefined) {
@@ -290,12 +295,32 @@
 		// Start the Construct 2 project running on window load.
 		jQuery(document).ready(function ()
 		{			
+			// Устанавливаем размеры canvas ДО создания runtime
+			var canvas = document.getElementById("c2canvas");
+			var container = document.getElementById("c2canvasdiv");
+			
+			if (container) {
+				var w = Math.max(320, Math.floor(window.innerWidth || document.documentElement.clientWidth || 1024));
+				var h = Math.max(240, Math.floor(window.innerHeight || document.documentElement.clientHeight || 768));
+				
+				container.style.width = w + "px";
+				container.style.height = h + "px";
+				container.style.position = "fixed";
+				container.style.top = "0";
+				container.style.left = "0";
+				container.style.overflow = "hidden";
+			}
+			
+			if (canvas) {
+				canvas.style.width = "100%";
+				canvas.style.height = "100%";
+			}
+			
 			// Create new runtime using the c2canvas
 			var runtime = cr_createRuntime("c2canvas");
 			
 			// Force proper canvas scaling to fit viewport
 			function resizeCanvas() {
-				var canvas = document.getElementById("c2canvas");
 				if (!canvas) return;
 				
 				// Get runtime if available
@@ -305,38 +330,39 @@
 				
 				if (!runtime) return;
 				
-			// Get valid viewport dimensions
-			var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1024;
-			var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 768;
-			
-			// Ensure valid finite numbers - проверяем что значения валидны
-			if (!isFinite(viewportWidth) || viewportWidth <= 0) {
-				viewportWidth = 1024;
-			}
-			if (!isFinite(viewportHeight) || viewportHeight <= 0) {
-				viewportHeight = 768;
-			}
-			
-			viewportWidth = Math.max(320, Math.floor(viewportWidth));
-			viewportHeight = Math.max(240, Math.floor(viewportHeight));
+				// Get valid viewport dimensions
+				var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1024;
+				var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 768;
+				
+				// Ensure valid finite numbers - строгая проверка
+				viewportWidth = Number(viewportWidth);
+				viewportHeight = Number(viewportHeight);
+				
+				if (!isFinite(viewportWidth) || viewportWidth <= 0 || isNaN(viewportWidth)) {
+					viewportWidth = 1024;
+				}
+				if (!isFinite(viewportHeight) || viewportHeight <= 0 || isNaN(viewportHeight)) {
+					viewportHeight = 768;
+				}
+				
+				viewportWidth = Math.max(320, Math.floor(viewportWidth));
+				viewportHeight = Math.max(240, Math.floor(viewportHeight));
 				
 				// Set canvas container to full viewport
-				var container = document.getElementById("c2canvasdiv");
 				if (container) {
 					container.style.width = viewportWidth + "px";
 					container.style.height = viewportHeight + "px";
-					container.style.position = "fixed";
-					container.style.top = "0";
-					container.style.left = "0";
-					container.style.overflow = "hidden";
 				}
 				
 				// Resize runtime to match viewport with valid dimensions
-				if (runtime.setSize && isFinite(viewportWidth) && isFinite(viewportHeight)) {
-					try {
-						runtime.setSize(viewportWidth, viewportHeight, true);
-					} catch (e) {
-						console.warn('Error setting runtime size:', e);
+				// Важно: вызываем только если runtime полностью инициализирован
+				if (runtime && runtime.setSize && typeof runtime.setSize === 'function') {
+					if (isFinite(viewportWidth) && isFinite(viewportHeight) && viewportWidth > 0 && viewportHeight > 0) {
+						try {
+							runtime.setSize(viewportWidth, viewportHeight, true);
+						} catch (e) {
+							console.warn('Error setting runtime size:', e);
+						}
 					}
 				}
 				
@@ -350,26 +376,24 @@
 				}
 			}
 			
-			// Wait for runtime to be fully initialized before resizing
-			var initAttempts = 0;
-			var initInterval = setInterval(function() {
-				initAttempts++;
+			// Ждем полной инициализации runtime перед изменением размера
+			setTimeout(function() {
 				if (typeof cr_getC2Runtime === 'function') {
 					runtime = cr_getC2Runtime();
-					if (runtime) {
-						clearInterval(initInterval);
-						resizeCanvas();
-					}
 				}
-				if (initAttempts > 20) {
-					clearInterval(initInterval);
+				if (runtime) {
 					resizeCanvas();
 				}
-			}, 100);
+			}, 500);
+			
+			setTimeout(resizeCanvas, 1000);
+			setTimeout(resizeCanvas, 2000);
 			
 			// Also resize on window resize
+			var resizeTimeout;
 			window.addEventListener("resize", function() {
-				setTimeout(resizeCanvas, 50);
+				clearTimeout(resizeTimeout);
+				resizeTimeout = setTimeout(resizeCanvas, 100);
 			});
 		});
 		
