@@ -43,11 +43,19 @@
 			top: 0;
 			left: 0;
 			overflow: hidden;
+			display: flex;
+			align-items: center;
+			justify-content: center;
 		}
 		canvas {
 			touch-action-delay: none;
 			touch-action: none;
 			-ms-touch-action: none;
+			max-width: 100vw;
+			max-height: 100vh;
+			width: auto;
+			height: auto;
+			display: block;
 		}
     </style>
 	
@@ -289,73 +297,10 @@
 		// Start the Construct 2 project running on window load.
 		jQuery(document).ready(function ()
 		{			
-			// Получаем размеры viewport ДО создания runtime
-			var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1024;
-			var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 768;
-			
-			// Валидация
-			viewportWidth = Number(viewportWidth);
-			viewportHeight = Number(viewportHeight);
-			if (!isFinite(viewportWidth) || viewportWidth <= 0) viewportWidth = 1024;
-			if (!isFinite(viewportHeight) || viewportHeight <= 0) viewportHeight = 768;
-			
-			viewportWidth = Math.max(320, Math.floor(viewportWidth));
-			viewportHeight = Math.max(240, Math.floor(viewportHeight));
-			
-			// Устанавливаем размеры canvas ДО создания runtime
-			var canvas = document.getElementById("c2canvas");
-			if (canvas) {
-				canvas.width = viewportWidth;
-				canvas.height = viewportHeight;
-			}
-			
+			// Canvas остается в оригинальном размере 1024x768
+			// Масштабирование происходит через CSS
 			// Create new runtime using the c2canvas
-			// Runtime будет использовать размеры canvas, которые мы установили
 			cr_createRuntime("c2canvas");
-			
-			// После инициализации обновляем размеры в runtime
-			function updateRuntimeSize() {
-				var runtime = null;
-				if (typeof cr_getC2Runtime === 'function') {
-					runtime = cr_getC2Runtime();
-				}
-				
-				if (!runtime) return;
-				
-				var w = window.innerWidth || document.documentElement.clientWidth || 1024;
-				var h = window.innerHeight || document.documentElement.clientHeight || 768;
-				
-				w = Number(w);
-				h = Number(h);
-				if (!isFinite(w) || w <= 0) w = 1024;
-				if (!isFinite(h) || h <= 0) h = 768;
-				
-				w = Math.max(320, Math.floor(w));
-				h = Math.max(240, Math.floor(h));
-				
-				if (canvas) {
-					canvas.width = w;
-					canvas.height = h;
-				}
-				
-				// Обновляем размеры в runtime
-				if (runtime.setSize && typeof runtime.setSize === 'function') {
-					try {
-						runtime.setSize(w, h, true);
-					} catch (e) {
-						console.warn('Error setting runtime size:', e);
-					}
-				}
-			}
-			
-			// Пробуем несколько раз с задержками
-			setTimeout(updateRuntimeSize, 500);
-			setTimeout(updateRuntimeSize, 1000);
-			setTimeout(updateRuntimeSize, 2000);
-			
-			window.addEventListener("resize", function() {
-				setTimeout(updateRuntimeSize, 100);
-			});
 		});
 		
 		// Pause and resume on page becoming visible/invisible
