@@ -50,10 +50,13 @@
 			-ms-touch-action: none;
 			display: block;
 			position: absolute;
-			top: 0;
-			left: 0;
-			width: 100%;
-			height: 100%;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			max-width: 100vw;
+			max-height: 100vh;
+			width: auto;
+			height: auto;
 		}
     </style>
 	
@@ -297,130 +300,47 @@
 		{			
 			var canvas = document.getElementById("c2canvas");
 			var container = document.getElementById("c2canvasdiv");
-			var runtime = null;
 			
-			// Функция для получения валидных размеров viewport
-			function getViewportSize() {
-				var w = window.innerWidth || document.documentElement.clientWidth || 1024;
-				var h = window.innerHeight || document.documentElement.clientHeight || 768;
-				
-				w = Number(w);
-				h = Number(h);
-				
-				if (!isFinite(w) || w <= 0 || isNaN(w)) w = 1024;
-				if (!isFinite(h) || h <= 0 || isNaN(h)) h = 768;
-				
-				return {
-					width: Math.max(320, Math.floor(w)),
-					height: Math.max(240, Math.floor(h))
-				};
-			}
-			
-			// Устанавливаем размеры ДО создания runtime
-			var size = getViewportSize();
-			
+			// Устанавливаем контейнер на весь экран
 			if (container) {
-				container.style.width = size.width + "px";
-				container.style.height = size.height + "px";
+				container.style.width = "100vw";
+				container.style.height = "100vh";
 				container.style.position = "fixed";
 				container.style.top = "0";
 				container.style.left = "0";
 				container.style.overflow = "hidden";
 			}
 			
+			// Canvas остается в оригинальном размере 1024x768
+			// Масштабирование происходит через CSS
 			if (canvas) {
-				// ВАЖНО: Устанавливаем реальные размеры canvas ДО создания runtime
-				// Это предотвращает ошибку "non-finite" в setPosition
-				canvas.width = size.width;
-				canvas.height = size.height;
-				canvas.style.width = "100%";
-				canvas.style.height = "100%";
+				canvas.width = 1024;
+				canvas.height = 768;
 			}
 			
 			// Create new runtime using the c2canvas
-			// Runtime будет использовать размеры canvas, которые мы только что установили
-			runtime = cr_createRuntime("c2canvas");
+			var runtime = cr_createRuntime("c2canvas");
 			
-			// Функция для изменения размера
-			function resizeCanvas() {
+			// Функция для масштабирования canvas через CSS
+			function scaleCanvas() {
 				if (!canvas || !container) return;
 				
-				// Получаем runtime
-				if (typeof cr_getC2Runtime === 'function') {
-					runtime = cr_getC2Runtime();
-				}
+				var containerWidth = container.clientWidth || window.innerWidth;
+				var containerHeight = container.clientHeight || window.innerHeight;
 				
-				if (!runtime) return;
+				// Вычисляем масштаб для вписывания в контейнер с сохранением пропорций
+				var scaleX = containerWidth / 1024;
+				var scaleY = containerHeight / 768;
+				var scale = Math.min(scaleX, scaleY);
 				
-				var size = getViewportSize();
-				
-				// Обновляем размеры контейнера
-				container.style.width = size.width + "px";
-				container.style.height = size.height + "px";
-				
-				// ВАЖНО: Обновляем реальные размеры canvas ПЕРЕД вызовом setSize
-				// Это предотвращает ошибку "non-finite"
-				canvas.width = size.width;
-				canvas.height = size.height;
-				
-				// Обновляем размеры в runtime - это критически важно!
-				if (runtime && runtime.setSize && typeof runtime.setSize === 'function') {
-					// Дополнительная проверка перед вызовом
-					if (isFinite(size.width) && isFinite(size.height) && size.width > 0 && size.height > 0) {
-						try {
-							runtime.setSize(size.width, size.height, true);
-						} catch (e) {
-							console.warn('Error setting runtime size:', e);
-						}
-					}
-				}
-				
-				// Также пробуем cr_sizeCanvas
-				if (typeof cr_sizeCanvas === 'function') {
-					try {
-						cr_sizeCanvas();
-					} catch (e) {
-						console.warn('Error calling cr_sizeCanvas:', e);
-					}
-				}
+				// Применяем масштаб через CSS transform
+				canvas.style.transform = "translate(-50%, -50%) scale(" + scale + ")";
+				canvas.style.transformOrigin = "center center";
 			}
 			
-			// Ждем инициализации runtime и меняем размер
-			// Используем более агрессивный подход - пробуем несколько раз
-			var initAttempts = 0;
-			var initInterval = setInterval(function() {
-				initAttempts++;
-				
-				if (typeof cr_getC2Runtime === 'function') {
-					runtime = cr_getC2Runtime();
-					if (runtime) {
-						// Проверяем, что runtime полностью инициализирован
-						if (runtime.setSize || runtime.width || runtime.height) {
-							clearInterval(initInterval);
-							resizeCanvas();
-							return;
-						}
-					}
-				}
-				
-				if (initAttempts > 50) {
-					clearInterval(initInterval);
-					resizeCanvas();
-				}
-			}, 50);
-			
-			// Дополнительные попытки с разными задержками
-			setTimeout(resizeCanvas, 300);
-			setTimeout(resizeCanvas, 600);
-			setTimeout(resizeCanvas, 1000);
-			setTimeout(resizeCanvas, 2000);
-			
-			// Resize при изменении размера окна
-			var resizeTimeout;
-			window.addEventListener("resize", function() {
-				clearTimeout(resizeTimeout);
-				resizeTimeout = setTimeout(resizeCanvas, 100);
-			});
+			// Масштабируем сразу и при изменении размера
+			scaleCanvas();
+			window.addEventListener("resize", scaleCanvas);
 		});
 		
 		// Pause and resume on page becoming visible/invisible
