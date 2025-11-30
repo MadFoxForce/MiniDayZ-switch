@@ -322,11 +322,11 @@
 					if (!isFinite(viewportWidth) || viewportWidth <= 0) viewportWidth = 1024;
 					if (!isFinite(viewportHeight) || viewportHeight <= 0) viewportHeight = 768;
 					
-					// Вычисляем масштаб для вписывания в экран с сохранением пропорций
+					// Вычисляем масштаб для заполнения всего экрана
 					var scaleX = viewportWidth / 1024;
 					var scaleY = viewportHeight / 768;
-					// Используем меньший масштаб, чтобы игра вписывалась в экран
-					var scale = Math.min(scaleX, scaleY);
+					// Используем больший масштаб, чтобы заполнить весь экран
+					var scale = Math.max(scaleX, scaleY);
 					
 					// Применяем масштаб через CSS transform
 					canvas.style.transform = "scale(" + scale + ")";
